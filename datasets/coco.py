@@ -16,13 +16,18 @@ from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
 from util.box_ops import box_cxcywh_to_xyxy, box_iou
 import datasets.transforms_coco as T
+import gdino_service.datasets.transform.detection_transform as T_dino
+from gdino_service.models.module import NestedTensor
+import torch
 from datasets.data_util import preparing_dataset
 __all__ = ['build']
 
 class CocoDetection(torch.utils.data.Dataset):
-    def __init__(self, root_path, image_set, transforms, return_masks):
+    def __init__(self, root_path, image_set, return_masks, transforms_edpose=None, transforms_dino=None):
         super(CocoDetection, self).__init__()
-        self._transforms = transforms
+        self._transforms_edpose = transforms_edpose
+        self._transforms_dino = transforms_dino
+        self.long_edge_size = 1280
         self.prepare = ConvertCocoPolysToMask(return_masks)
         if image_set == "train":
             self.img_folder = root_path / "train2017"
@@ -38,6 +43,7 @@ class CocoDetection(torch.utils.data.Dataset):
                 if sum(num_keypoints) == 0:
                     continue
                 self.all_imgIds.append(image_id)
+
         else:
             self.Inference_Path = os.environ.get("Inference_Path")
             if self.Inference_Path:
@@ -49,24 +55,49 @@ class CocoDetection(torch.utils.data.Dataset):
                         self.all_imgIds.append(os.path.splitext(file)[0])
             else:
                 self.img_folder = root_path / "val2017"
+                # self.coco = COCO(root_path / "annotations/person_keypoints_val2017_hasgt.json")
                 self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
                 imgIds = sorted(self.coco.getImgIds())
                 self.all_imgIds = []
+                self.all_file = []
                 for image_id in imgIds:
                     self.all_imgIds.append(image_id)
-
+                    self.all_file.append(self.coco.loadImgs(image_id)[0]['file_name'])
+        if self._transforms_dino is not None:
+            self.gdino = True
+        elif self._transforms_edpose is not None:
+            self.gdino = False
+    # COCO_PATH + '/annotations/person_keypoints_val2017_hasgt.json'
     def __len__(self):
         return len(self.all_imgIds)
 
     def __getitem__(self, idx):
+        self.Inference_Path = os.environ.get("Inference_Path")
         if self.Inference_Path:
             image_id = self.all_imgIds[idx]
             target = {'image_id': int(image_id), 'annotations': []}
             img = Image.open(self.Inference_Path + self.all_file[idx])
             img, target = self.prepare(img, target)
-            if self._transforms is not None:
-                img, target = self._transforms(img, target)
-            return img, target
+
+            assert not (self._transforms_edpose and self._transforms_dino), "Only one transform is allowed"
+
+            if self._transforms_edpose is not None:
+                img, target = self._transforms_edpose(img, target)
+            elif self._transforms_dino is not None:
+                img, target = self._transforms_dino(img, target)
+            
+            # mask not be referenced !!!
+            # if self.gdino:
+            #     masks = torch.ones(self.long_edge_size, self.long_edge_size, dtype=bool)
+            #     C, H0, W0 = img.shape
+            #     masks[:H0, :W0] = False
+            #     C, H, W = img.shape
+            #     if H != self.long_edge_size or W != self.long_edge_size:
+            #         tensors = torch.zeros(C, self.long_edge_size, self.long_edge_size, dtype=img.dtype).to(img.device)
+            #         tensors[:, :H, :W] = img
+            #         img = tensors
+            # return img, target
+                
         else:
             image_id = self.all_imgIds[idx]
             ann_ids = self.coco.getAnnIds(imgIds=image_id)
@@ -75,8 +106,27 @@ class CocoDetection(torch.utils.data.Dataset):
             target = {'image_id': image_id, 'annotations': target}
             img = Image.open(self.img_folder / self.coco.loadImgs(image_id)[0]['file_name'])
             img, target = self.prepare(img, target)
-            if self._transforms is not None:
-                img, target = self._transforms(img, target)
+
+            assert not (self._transforms_edpose and self._transforms_dino < 2), "Only one transform is allowed"
+            if self._transforms_edpose is not None:
+                img, target = self._transforms_edpose(img, target)
+            if self._transforms_dino is not None:
+                img, target = self._transforms_dino(img, target)
+            # no mask after transform
+            # if self.gdino:
+            #     masks = torch.ones(self.long_edge_size, self.long_edge_size, dtype=bool)
+            #     C, H0, W0 = img.shape
+            #     masks[:H0, :W0] = False
+            #     C, H, W = img.shape
+            #     if H != self.long_edge_size or W != self.long_edge_size:
+            #         tensors = torch.zeros(C, self.long_edge_size, self.long_edge_size, dtype=img.dtype).to(img.device)
+            #         tensors[:, :H, :W] = img
+                        # or
+            #         img = tensors
+
+                return img, target
+
+        
         return img, target
 
 
@@ -114,8 +164,12 @@ class ConvertCocoPolysToMask(object):
         anno = [obj for obj in anno if 'iscrowd' not in obj or obj['iscrowd'] == 0]
         anno = [obj for obj in anno if obj['num_keypoints'] != 0]
         keypoints = [obj["keypoints"] for obj in anno]
+        num_keypoints = [obj["num_keypoints"] for obj in anno]
+        num_keypoints = torch.tensor(num_keypoints, dtype=torch.int64)
+        # import pdb; pdb.set_trace()
         boxes = [obj["bbox"] for obj in anno]
         keypoints = torch.as_tensor(keypoints, dtype=torch.float32).reshape(-1, 17, 3)
+
         # guard against no boxes via resizing
         boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
         boxes[:, 2:] += boxes[:, :2]
@@ -133,6 +187,7 @@ class ConvertCocoPolysToMask(object):
         if self.return_masks:
             masks = masks[keep]
         target = {}
+        target["num_keypoints"] = num_keypoints
         target["boxes"] = boxes
         target["labels"] = classes
         if self.return_masks:
@@ -150,7 +205,7 @@ class ConvertCocoPolysToMask(object):
         return image, target
 
 
-def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None):
+def make_coco_transforms(image_set, fix_size=False, strong_aug=False, dino_backbone=False, args=None):
     normalize = T.Compose([
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -176,12 +231,33 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
         max_size = int(max_size * data_aug_scale_overlap)
         scales2_resize = [int(i * data_aug_scale_overlap) for i in scales2_resize]
         scales2_crop = [int(i * data_aug_scale_overlap) for i in scales2_crop]
+        
     datadict_for_print = {
         'scales': scales,
         'max_size': max_size,
         'scales2_resize': scales2_resize,
         'scales2_crop': scales2_crop
     }
+
+    
+    if dino_backbone:
+        # import pdb
+        # pdb.set_trace()
+        # if image_set == 'train':
+            
+        short_edge = long_edge = 1280
+        return T.Compose([
+            T_dino.ResizeShortestEdge(short_edge_length=short_edge, max_size=long_edge),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        # elif image_set in ['val', 'test']:
+        #     return T.Compose([
+        #         T.ToTensor(),
+        #         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        #     ])
+
+    
     if image_set == 'train':
         if fix_size:
             return T.Compose([
@@ -204,8 +280,6 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
         ])
 
     if image_set in ['val', 'test']:
-
-
         return T.Compose([
             T.RandomResize([max(scales)], max_size=max_size),
             normalize,
@@ -216,8 +290,22 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
 
 def build(image_set, args):
     root = Path(args.coco_path)
-    dataset = CocoDetection(root, image_set, transforms=make_coco_transforms(image_set, strong_aug=args.strong_aug),
-                            return_masks=args.masks)
+    if args.dinox_backbone:
+        print('Building Dionx Based Dataset')
+        dataset = CocoDetection(root, image_set, 
+                                return_masks=args.masks, 
+                                transforms_edpose=None,
+                                transforms_dino=make_coco_transforms(image_set, 
+                                                                strong_aug=args.strong_aug, 
+                                                                dino_backbone=args.dinox_backbone, 
+                                                                args=args),
+)
+    else:
+        dataset = CocoDetection(root, image_set, 
+                                return_masks=args.masks, 
+                                transforms_edpose=make_coco_transforms(image_set, 
+                                                                strong_aug=args.strong_aug, 
+                                                                args=args),)
 
     return dataset
 

@@ -10,7 +10,7 @@ from torch import nn, Tensor
 from .transformer_deformable import DeformableTransformerEncoderLayer, DeformableTransformerDecoderLayer
 from .utils import gen_encoder_output_proposals, sigmoid_focal_loss, MLP, _get_activation_fn, gen_sineembed_for_position
 from .ops.modules.ms_deform_attn import MSDeformAttn
-
+import pdb
 
 class Transformer(nn.Module):
 
@@ -720,6 +720,7 @@ class TransformerDecoder(nn.Module):
 
             # query expansion
             if layer_id == self.num_box_decoder_layers - 1:
+                #pdb.set_trace()
                 dn_output = output[:effect_num_dn]
                 dn_new_reference_points = new_reference_points[:effect_num_dn]
                 class_unselected = self.class_embed[layer_id](output)[effect_num_dn:]
@@ -747,6 +748,7 @@ class TransformerDecoder(nn.Module):
 
             # human-to-keypoints update
             if layer_id >= self.num_box_decoder_layers:
+                #pdb.set_trace()
                 reference_before_sigmoid = inverse_sigmoid(reference_points)
                 output_bbox_dn=output[:effect_num_dn]
                 output_bbox_norm = output[effect_num_dn:][0::(self.num_body_points+1)]

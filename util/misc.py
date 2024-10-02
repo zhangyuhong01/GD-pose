@@ -278,7 +278,10 @@ def get_sha():
 def collate_fn(batch):
     # import ipdb; ipdb.set_trace()
     batch = list(zip(*batch))
-    batch[0] = nested_tensor_from_tensor_list(batch[0])
+    # for edpose
+    # batch[0] = nested_tensor_from_tensor_list(batch[0])
+    # for dino
+    batch[0] = nested_tensor_from_tensor_list_for_dino(batch[0])
     return tuple(batch)
 
 
@@ -375,6 +378,28 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
 
         # TODO make it support different-sized images
         max_size = _max_by_axis([list(img.shape) for img in tensor_list])
+        # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
+        batch_shape = [len(tensor_list)] + max_size
+        b, c, h, w = batch_shape
+        dtype = tensor_list[0].dtype
+        device = tensor_list[0].device
+        tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
+        mask = torch.ones((b, h, w), dtype=torch.bool, device=device)
+        for img, pad_img, m in zip(tensor_list, tensor, mask):
+            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
+            m[: img.shape[1], :img.shape[2]] = False
+    else:
+        raise ValueError('not supported')
+    return NestedTensor(tensor, mask)
+
+def nested_tensor_from_tensor_list_for_dino(tensor_list: List[Tensor], long_edge_size=1280):
+    # TODO make this more general
+    if tensor_list[0].ndim == 3:
+        
+        # TODO make it support different-sized images
+        #max_size = _max_by_axis([list(img.shape) for img in tensor_list])
+        max_size = [3, long_edge_size, long_edge_size]
+
         # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
         batch_shape = [len(tensor_list)] + max_size
         b, c, h, w = batch_shape

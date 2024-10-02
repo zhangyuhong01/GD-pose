@@ -13,6 +13,7 @@ class CocoEvaluator(object):
         assert isinstance(iou_types, (list, tuple))
         COCO_PATH = os.environ.get("EDPOSE_COCO_PATH")
         cocodir = COCO_PATH + '/annotations/person_keypoints_val2017.json'
+        #cocodir = COCO_PATH + '/annotations/person_keypoints_val2017_hasgt.json'
         coco_gt = COCO(cocodir)
         self.coco_gt = coco_gt
 
@@ -61,7 +62,6 @@ class CocoEvaluator(object):
                 with contextlib.redirect_stdout(devnull):
                     coco_dt = COCO.loadRes(self.coco_gt, results) if results else COCO()
             coco_eval = self.coco_eval[iou_type]
-
             coco_eval.cocoDt = coco_dt
             coco_eval.params.imgIds = list(img_ids)
             coco_eval.params.useCats = self.useCats

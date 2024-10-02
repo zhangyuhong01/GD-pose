@@ -89,7 +89,7 @@ class Backbone(BackboneBase):
                  return_interm_indices:list,
                  batch_norm=FrozenBatchNorm2d,
                  ):
-        if name in ['resnet18', 'resnet34', 'resnet50', 'resnet101']:
+        if name in ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'dinox']:
             backbone = getattr(torchvision.models, name)(
                 replace_stride_with_dilation=[False, False, dilation],
                 pretrained=is_main_process(), norm_layer=batch_norm)
@@ -132,8 +132,9 @@ def build_backbone(args):
     """
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
-    if not train_backbone:
-        raise ValueError("Please set lr_backbone > 0")
+    train_backbone = False
+    # if not train_backbone:
+    #     raise ValueError("Please set lr_backbone > 0")
     return_interm_indices = args.return_interm_indices
     assert return_interm_indices in [[0,1,2,3], [1,2,3], [3]]
     backbone_freeze_keywords = args.backbone_freeze_keywords
@@ -163,7 +164,8 @@ def build_backbone(args):
             'swin_B_384_22k': 'swin_base_patch4_window12_384.pth',
             'swin_L_384_22k': 'swin_large_patch4_window12_384_22k.pth',
         }
-        pretrainedpath = os.path.join(pretrained_dir, PTDICT[args.backbone]) 
+        #pretrainedpath = os.path.join(pretrained_dir, PTDICT[args.backbone]) 
+        pretrainedpath = os.path.join(args.pretrain_model_path)
         checkpoint = torch.load(pretrainedpath, map_location='cpu')['model']
         from collections import OrderedDict
         def key_select_function(keyname):
