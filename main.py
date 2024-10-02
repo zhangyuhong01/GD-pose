@@ -15,10 +15,12 @@ import torch.distributed as dist
 import datasets
 import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
-from engine import evaluate, train_one_epoch,inference_vis
+from engine import evaluate, train_one_epoch, inference_vis
 import models
 from util.config import DictAction, Config
 from util.utils import ModelEma, BestMetricHolder
+import logging
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -44,7 +46,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
-    parser.add_argument('--resume', default='', help='resume from checkpoint')
+    parser.add_argument('--resume', default=None, help='resume from checkpoint')
     parser.add_argument('--pretrain_model_path', help='load from other checkpoint')
     parser.add_argument('--finetune_ignore', type=str, nargs='+')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -66,8 +68,11 @@ def get_args_parser():
     parser.add_argument('--rank', default=0, type=int,
                         help='number of distributed processes')
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
+    parser.add_argument('--local-rank', type=int, )
     parser.add_argument('--amp', action='store_true',
                         help="Train with mixed precision")
+    parser.add_argument('--dinox_backbone', action='store_true', help='Using gd as fixed backbone')
+    parser.add_argument('--use_resume', type=bool, help='Whether to use resume checkpoint') 
     
     return parser
 
@@ -76,10 +81,14 @@ def build_model_main(args):
     from models.registry import MODULE_BUILD_FUNCS
     assert args.modelname in MODULE_BUILD_FUNCS._module_dict
     build_func = MODULE_BUILD_FUNCS.get(args.modelname)
+    print('build_func:', build_func) 
     model, criterion, postprocessors = build_func(args)
     return model, criterion, postprocessors
 
 def main(args):
+    if not args.debug:
+        os.environ['LOCAL_RANK'] = str(args.local_rank)
+    
     utils.init_distributed_mode(args)
     print("Loading config file from {}".format(args.config_file))
     time.sleep(args.rank * 0.02)
@@ -130,7 +139,7 @@ def main(args):
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
+    #print(args)
 
     device = torch.device(args.device)
 
@@ -153,6 +162,8 @@ def main(args):
 
 
     model_without_ddp = model
+    if args.debug:
+        args.distributed = False
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
         model_without_ddp = model.module
@@ -199,8 +210,10 @@ def main(args):
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
 
     output_dir = Path(args.output_dir)
-    if os.path.exists(os.path.join(args.output_dir, 'checkpoint.pth')):
+    
+    if os.path.exists(os.path.join(args.output_dir, 'checkpoint.pth')) and args.use_resume:
         args.resume = os.path.join(args.output_dir, 'checkpoint.pth')
+    args.resume = False
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -208,6 +221,8 @@ def main(args):
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
         model_without_ddp.load_state_dict(checkpoint['model'])
+        # pdb.set_trace()
+        
         if args.use_ema:
             if 'ema_model' in checkpoint:
                 ema_m.module.load_state_dict(utils.clean_state_dict(checkpoint['ema_model']))
@@ -248,12 +263,15 @@ def main(args):
 
 
     if args.eval:
+        os.environ['Inference_Path'] = '/comp_robot/zhangyuhong1/code2/ED-Pose/data/coco_dir/val2017/'
         if os.environ.get("Inference_Path"):
+            # pdb.set_trace()
             inference_vis(model, criterion, postprocessors,
                      data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
             return
 
         else:
+            # pdb.set_trace()
             os.environ['EVAL_FLAG'] = 'TRUE'
             test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
                                                   data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
@@ -320,6 +338,17 @@ def main(args):
             **{f'train_{k}': v for k, v in train_stats.items()},
             **{f'test_{k}': v for k, v in test_stats.items()},
         }
+        
+        # Save test_stats 
+        # if args.rank == 0:
+        #     save_name = os.path.join(args.output_dir, f'metric_epoch{epoch}.json')
+        #     import pdb
+        #     pdb.set_trace() 
+        #     coco_evaluator.coco_eval["keypoints"].dump(save_name)
+        # logging.basicConfig(level=logging.INFO, filename=os.path.join(args.output_dir, 'metric_log.txt'))
+        # log = logging.getLogger(__name__)
+        # log.info(coco_evaluator.summarize())
+
 
         # eval ema
         if args.use_ema:
@@ -378,6 +407,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
+    
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
