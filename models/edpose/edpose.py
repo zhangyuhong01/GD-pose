@@ -12,13 +12,14 @@ from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
                        is_dist_avail_and_initialized, inverse_sigmoid)
 from .backbones import build_backbone
+from .grounding_dino import build_dinox_backbone
 from .matcher import build_matcher
 from .transformer import build_transformer
 from .utils import PoseProjector, sigmoid_focal_loss, MLP
 from .postprocesses import PostProcess
 from .criterion import SetCriterion
 from ..registry import MODULE_BUILD_FUNCS
-
+import pdb
 class EDPose(nn.Module):
     def __init__(self, backbone, transformer, num_classes, num_queries, 
                     aux_loss=False, iter_update=True,
@@ -43,6 +44,7 @@ class EDPose(nn.Module):
                     num_group = 100,
                     num_body_points = 17,
                     num_box_decoder_layers = 2,
+                    is_dinox_backbone=False,
                     ):
         super().__init__()
         self.num_queries = num_queries
@@ -176,7 +178,7 @@ class EDPose(nn.Module):
             else:
                 self.transformer.enc_out_class_embed = copy.deepcopy(_class_embed)
             self.refpoint_embed = None
-
+        self.is_dinox_backbone = is_dinox_backbone
 
         self._reset_parameters()
 
@@ -394,7 +396,7 @@ class EDPose(nn.Module):
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
         features, poss = self.backbone(samples)
-
+        # pdb.set_trace()
         srcs = []
         masks = []
         for l, feat in enumerate(features):
@@ -402,6 +404,7 @@ class EDPose(nn.Module):
             srcs.append(self.input_proj[l](src))
             masks.append(mask)
             assert mask is not None
+        # pdb.set_trace()
         if self.num_feature_levels > len(srcs):
             _len_srcs = len(srcs)
             for l in range(_len_srcs, self.num_feature_levels):
@@ -415,7 +418,7 @@ class EDPose(nn.Module):
                 srcs.append(src)
                 masks.append(mask)
                 poss.append(pos_l)
-
+        # pdb.set_trace()
         if self.dn_number > 0 or targets is not None:
             input_query_label, input_query_bbox, attn_mask,attn_mask2, mask_dict =\
                 self.prepare_for_dn2(targets)
@@ -423,7 +426,7 @@ class EDPose(nn.Module):
         else:
             assert targets is None
             input_query_bbox = input_query_label = attn_mask =attn_mask1=attn_mask2= mask_dict = None
-
+        # pdb.set_trace()
         hs, reference, hs_enc, ref_enc, init_box_proposal = self.transformer(srcs, masks, input_query_bbox, poss, input_query_label, attn_mask,attn_mask2)
 
         # update human boxes
@@ -540,9 +543,11 @@ def build_edpose(args):
 
     num_classes = args.num_classes
     device = torch.device(args.device)
-
+    
     backbone = build_backbone(args)
-
+    if args.dinox_backbone:
+        backbone = build_dinox_backbone(args)
+        # pdb.set_trace()
     transformer = build_transformer(args)
 
     dn_labelbook_size = args.dn_labelbook_size
@@ -581,7 +586,8 @@ def build_edpose(args):
         cls_no_bias=args.cls_no_bias,
         num_group=args.num_group,
         num_body_points=args.num_body_points,
-        num_box_decoder_layers=args.num_box_decoder_layers
+        num_box_decoder_layers=args.num_box_decoder_layers,
+        is_dinox_backbone=args.dinox_backbone,
     )
     matcher = build_matcher(args)
 

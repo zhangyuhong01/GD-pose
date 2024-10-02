@@ -1,0 +1,4 @@
+# ninja log v6
+5	4692	1725779401000000000	/comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/build/temp.linux-x86_64-cpython-37/comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/src/cpu/ms_deform_attn_cpu.o	27f7a0c0d9abb8ce
+14	21348	1725779401000000000	/comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/build/temp.linux-x86_64-cpython-37/comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/src/vision.o	4f0b60a899e2d6e1
+8	41388	1725779401000000000	/comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/build/temp.linux-x86_64-cpython-37/comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/src/cuda/ms_deform_attn_cuda.o	b89576960a67b7f8
