@@ -22,7 +22,7 @@ dist_edpose:
 			--dataset_file="coco" \
 			--save_log \
 			--save_results \
-			--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/output3/
+			--output_dir work_dirs/output3/
 
 dist_edpose_8:
 	python -m torch.distributed.launch --nproc_per_node=8  main.py \
@@ -32,7 +32,7 @@ dist_edpose_8:
 			--dataset_file="coco" \
 			--save_log \
 			--save_results \
-			--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/output3/
+			--output_dir work_dirs/output3/
 
 debug_edpose:
 	python main.py \
@@ -42,7 +42,7 @@ debug_edpose:
 		--dataset_file="coco" \
 		--save_log \
 		--save_results \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/output3/
+		--output_dir work_dirs/output3/
 		--debug
 
 debug_dino_backbone:
@@ -53,7 +53,7 @@ debug_dino_backbone:
 		--dataset_file="coco" \
 		--save_log \
 		--save_results \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/output3/ \
+		--output_dir work_dirs/output3/ \
 		--debug \
 		--dinox_backbone \
 		--use_resume False \
@@ -69,7 +69,7 @@ dist_dino_8:
 		--dataset_file="coco" \
 		--save_log \
 		--save_results \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_output/ \
+		--output_dir work_dirs/dino_output/ \
 		--dinox_backbone \
 		--resume True
 
@@ -81,7 +81,7 @@ dist_dino_new_4:
 		--dataset_file="coco" \
 		--save_log \
 		--save_results \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_101_test/ \
+		--output_dir work_dirs/dino_101_test/ \
 		--dinox_backbone \
 		--use_resume False \
 		--resume False
@@ -94,7 +94,7 @@ dist_dino_new_8:
 		--dataset_file="coco" \
 		--save_log \
 		--save_results \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_101_test_8/ \
+		--output_dir work_dirs/dino_101_test_8/ \
 		--dinox_backbone \
 		--use_resume False \
 		--resume False
@@ -106,7 +106,7 @@ eval_dino:
 		--options batch_size=1 epochs=60 lr_drop=55 num_body_points=17 backbone='resnet50' \
 		--dataset_file="coco" \
  		--pretrain_model_path "/comp_robot/zhangyuhong1/code2/ED-Pose/dino_101_test_8/checkpoint_best_regular.pth" \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_101_test_8/ \
+		--output_dir work_dirs/dino_101_test_8/ \
 		--dinox_backbone \
 		--eval \
 		--debug
@@ -119,7 +119,7 @@ eval_dino_resnet50:
 		--options batch_size=1 epochs=60 lr_drop=55 num_body_points=17 backbone='resnet50' \
 		--dataset_file="coco" \
  		--pretrain_model_path "/comp_robot/zhangyuhong1/pretrained_model/EDpose/edpose_r50_coco.pth" \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_eval/ \
+		--output_dir work_dirs/dino_eval/ \
 		--eval
 eval_dino_swint:
 	python -m torch.distributed.launch --nproc_per_node=1 main.py \
@@ -128,7 +128,7 @@ eval_dino_swint:
 		--options batch_size=1 epochs=60 lr_drop=55 num_body_points=17 backbone='swin_L_384_22k' \
 		--dataset_file="coco" \
  		--pretrain_model_path "/comp_robot/zhangyuhong1/pretrained_model/EDpose/edpose_swinl_coco.pth" \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_eval/ \
+		--output_dir work_dirs/dino_eval/ \
 		--eval
 
 
@@ -139,7 +139,7 @@ eval_dino_debug:
 		--options batch_size=1 epochs=60 lr_drop=55 num_body_points=17 backbone='resnet50' \
 		--dataset_file="coco" \
  		--pretrain_model_path "/comp_robot/zhangyuhong1/code2/ED-Pose/dino_output/checkpoint_best_regular.pth" \
-		--output_dir /comp_robot/zhangyuhong1/code2/ED-Pose/dino_eval/ \
+		--output_dir work_dirs/dino_eval/ \
 		--dinox_backbone \
 		--eval \
 		--debug 

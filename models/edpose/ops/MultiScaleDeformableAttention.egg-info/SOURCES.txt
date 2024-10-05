@@ -2,6 +2,9 @@ setup.py
 /comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/src/vision.cpp
 /comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/src/cpu/ms_deform_attn_cpu.cpp
 /comp_robot/zhangyuhong1/code2/ED-Pose/models/edpose/ops/src/cuda/ms_deform_attn_cuda.cu
+/home/jiangxiaoke/workspace/GD-pose/models/edpose/ops/src/vision.cpp
+/home/jiangxiaoke/workspace/GD-pose/models/edpose/ops/src/cpu/ms_deform_attn_cpu.cpp
+/home/jiangxiaoke/workspace/GD-pose/models/edpose/ops/src/cuda/ms_deform_attn_cuda.cu
 MultiScaleDeformableAttention.egg-info/PKG-INFO
 MultiScaleDeformableAttention.egg-info/SOURCES.txt
 MultiScaleDeformableAttention.egg-info/dependency_links.txt

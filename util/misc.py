@@ -4,7 +4,7 @@ Misc functions, including distributed helpers.
 Mostly copy-paste from torchvision references.
 """
 import os
-import random 
+import random
 import subprocess
 import time
 from collections import OrderedDict, defaultdict, deque
@@ -12,12 +12,13 @@ import datetime
 import pickle
 from typing import Optional, List
 
-import json, time
+import json
+import time
 import numpy as np
 import torch
 import torch.distributed as dist
 from torch import Tensor
-
+import pdb
 import colorsys
 
 import torchvision
@@ -392,12 +393,13 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
         raise ValueError('not supported')
     return NestedTensor(tensor, mask)
 
+
 def nested_tensor_from_tensor_list_for_dino(tensor_list: List[Tensor], long_edge_size=1280):
     # TODO make this more general
     if tensor_list[0].ndim == 3:
-        
+
         # TODO make it support different-sized images
-        #max_size = _max_by_axis([list(img.shape) for img in tensor_list])
+        # max_size = _max_by_axis([list(img.shape) for img in tensor_list])
         max_size = [3, long_edge_size, long_edge_size]
 
         # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
@@ -407,13 +409,14 @@ def nested_tensor_from_tensor_list_for_dino(tensor_list: List[Tensor], long_edge
         device = tensor_list[0].device
         tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
         mask = torch.ones((b, h, w), dtype=torch.bool, device=device)
+        # pdb.set_trace() # shock
         for img, pad_img, m in zip(tensor_list, tensor, mask):
-            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
+            # print(f'{pad_img.shape=} {img.shape=}')
+            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img[..., :1280, :1280])
             m[: img.shape[1], :img.shape[2]] = False
     else:
         raise ValueError('not supported')
     return NestedTensor(tensor, mask)
-
 
 
 @torch.jit.unused
@@ -497,8 +500,9 @@ def init_distributed_mode(args):
         args.rank = int(os.environ['SLURM_PROCID'])
         args.gpu = args.local_rank = int(os.environ['SLURM_LOCALID'])
         args.world_size = int(os.environ['SLURM_NPROCS'])
-        
-        print('world size: {}, world rank: {}, local rank: {}, device_count: {}'.format(args.world_size, args.rank, args.local_rank, torch.cuda.device_count()))
+
+        print('world size: {}, world rank: {}, local rank: {}, device_count: {}'.format(
+            args.world_size, args.rank, args.local_rank, torch.cuda.device_count()))
         print("os.environ['SLURM_JOB_NODELIST']:", os.environ['SLURM_JOB_NODELIST'])
         print(json.dumps(dict(os.environ), indent=2))
         print('args:')
@@ -563,11 +567,10 @@ def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corne
         return torchvision.ops.misc.interpolate(input, size, scale_factor, mode, align_corners)
 
 
-
 class color_sys():
     def __init__(self, num_colors) -> None:
         self.num_colors = num_colors
-        colors=[]
+        colors = []
         for i in np.arange(0., 360., 360. / num_colors):
             hue = i/360.
             lightness = (50 + np.random.rand() * 10)/100.
@@ -578,11 +581,13 @@ class color_sys():
     def __call__(self, idx):
         return self.colors[idx]
 
+
 def inverse_sigmoid(x, eps=1e-3):
     x = x.clamp(min=0, max=1)
     x1 = x.clamp(min=eps)
     x2 = (1 - x).clamp(min=eps)
     return torch.log(x1/x2)
+
 
 def clean_state_dict(state_dict):
     new_state_dict = OrderedDict()
